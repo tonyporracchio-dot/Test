@@ -10,9 +10,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Meteo Pro">
     
-    <!-- Apple Touch Icons (Generated high-res SVG data URI icon for iOS Home Screen) -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%230284c7'/%3E%3Cstop offset='100%25' stop-color='%231e3a8a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='110' fill='url(%23bg)'/%3E%3Ccircle cx='256' cy='230' r='110' fill='%23fde047'/%3E%3Cpath d='M370 330H142c-45 0-82-37-82-82s37-82 82-82c11 0 21 2 31 7 24-42 69-70 121-70 77 0 140 63 140 140 0 8-1 16-2 24 23 8 39 30 39 56 0 33-27 60-60 60z' fill='rgba(255,255,255,0.85)'/%3E%3C/svg%3E">
-    <link rel="apple-touch-icon-precomposed" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%230284c7'/%3E%3Cstop offset='100%25' stop-color='%231e3a8a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='110' fill='url(%23bg)'/%3E%3Ccircle cx='256' cy='230' r='110' fill='%23fde047'/%3E%3Cpath d='M370 330H142c-45 0-82-37-82-82s37-82 82-82c11 0 21 2 31 7 24-42 69-70 121-70 77 0 140 63 140 140 0 8-1 16-2 24 23 8 39 30 39 56 0 33-27 60-60 60z' fill='rgba(255,255,255,0.85)'/%3E%3C/svg%3E">
+    <!-- Apple Touch Icon (Linked to PNG file for iOS Home Screen support) -->
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="apple-touch-icon-precomposed" href="apple-touch-icon.png">
+    
+    <!-- Web App Manifest for Android PWA Support -->
+    <link rel="manifest" href="manifest.json">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,17 +30,10 @@
 
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: {
-                        weather: {
-                            blue: '#1e3a8a',
-                            sky: '#0284c7',
-                            card: 'rgba(255, 255, 255, 0.15)',
-                            cardDark: 'rgba(15, 23, 42, 0.55)'
-                        }
-                    }
                 }
             }
         }
@@ -47,6 +43,8 @@
         ::-webkit-scrollbar { height: 4px; width: 4px; }
         ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
         ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 9999px; }
+        
+        /* Glassmorphism Defaults (Light/Sky Theme) */
         .glass-panel {
             background: rgba(255, 255, 255, 0.16);
             backdrop-filter: blur(12px);
@@ -59,10 +57,17 @@
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
+
+        /* Dark Mode Overrides */
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
-<body class="bg-gradient-to-br from-slate-900 via-sky-900 to-blue-950 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white">
+<body id="appBody" class="bg-gradient-to-br from-slate-900 via-sky-900 to-blue-950 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500">
 
     <!-- App Container -->
     <div class="w-full max-w-md md:max-w-xl mx-auto px-1 pt-1 sm:px-3 sm:pt-3 space-y-2">
@@ -75,8 +80,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                     </svg>
                 </div>
-                <input type="text" id="cityInput" placeholder="Cerca città (es. Roma, Milano)..." 
-                    class="w-full pl-9 pr-3 py-2 bg-white/10 text-white placeholder-white/60 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400/50 transition">
+                <input type="text" id="cityInput" placeholder="Cerca città (es. Milano, Roma)..." 
+                    class="w-full pl-9 pr-3 py-2 bg-white/10 dark:bg-black/30 text-white placeholder-white/60 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400/50 transition">
                 
                 <!-- Autocomplete Dropdown -->
                 <div id="searchResults" class="hidden absolute left-0 right-0 top-full mt-1.5 glass-modal rounded-xl shadow-2xl z-50 max-h-56 overflow-y-auto divide-y divide-white/10 text-sm"></div>
@@ -89,6 +94,18 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
             </button>
+
+            <!-- Dark / Light Mode Toggle Button -->
+            <button id="themeToggleBtn" title="Cambia Tema" class="p-2.5 bg-sky-500/30 hover:bg-sky-500/50 active:scale-95 rounded-xl transition text-white flex items-center justify-center shrink-0 border border-white/20">
+                <!-- Sun Icon for Dark Mode Switch -->
+                <svg id="themeIconSun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="5" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+                <!-- Moon Icon for Light Mode Switch -->
+                <svg id="themeIconMoon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                </svg>
+            </button>
         </header>
 
         <!-- Main Weather Hero Card -->
@@ -99,7 +116,7 @@
                 <p class="text-xs font-medium text-sky-200">Caricamento meteo...</p>
             </div>
 
-            <!-- Weather Code & Enlarged Icon -->
+            <!-- Weather Code & Header info -->
             <div class="flex items-center justify-between text-left mb-1">
                 <div>
                     <h1 id="cityName" class="text-xl sm:text-2xl font-bold tracking-tight">--</h1>
@@ -109,22 +126,20 @@
                 <span id="weatherBadge" class="px-2.5 py-1 bg-white/15 text-xs font-medium rounded-full border border-white/20 uppercase tracking-wider">--</span>
             </div>
 
-            <!-- Main Temp, Icon Stack & Wind directly under Temperature -->
+            <!-- Main Temp, Left Icon Stack & Wind -->
             <div class="my-2 flex flex-row items-center justify-center gap-3 sm:gap-5">
                 <div id="mainWeatherIcon" class="w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center drop-shadow-md shrink-0">
                     <!-- Dynamic SVG Icon inserted here -->
                 </div>
                 <div class="text-center flex flex-col items-center justify-center gap-0.5">
-                    <!-- Riga 1: Temperatura principale -->
+                    <!-- Temperature Real + Perceived -->
                     <div class="flex items-baseline justify-center">
                         <span id="mainTemp" class="text-6xl sm:text-7xl font-extrabold tracking-tighter">--</span>
                         <span class="text-2xl font-light text-sky-200 ml-0.5">°C</span>
                     </div>
-
-                    <!-- Riga 2: Temperatura percepita sotto la temperatura reale -->
                     <p id="feelsLike" class="text-xs sm:text-sm text-white/80 font-medium">Percepita: --°C</p>
 
-                    <!-- Riga 3: Velocità del vento e freccia direzionale -->
+                    <!-- Wind Row -->
                     <div id="mainWindRow" class="flex items-center justify-center gap-1.5 text-xs sm:text-sm font-medium text-sky-200 mt-1">
                         <span class="text-white/70">Vento:</span>
                         <span id="mainWindSpeed" class="font-bold">-- km/h</span>
@@ -144,7 +159,7 @@
                     <p id="humidity" class="text-sm font-bold text-sky-100">--%</p>
                 </div>
                 
-                <!-- Centered Rain Box with 3 stacked rows (%, mm, 5 dots) -->
+                <!-- Centered Rain Box with 3 stacked rows -->
                 <div class="p-1.5 bg-white/5 rounded-xl flex flex-col items-center justify-center text-center min-h-[60px]">
                     <p class="text-[10px] text-white/70 uppercase font-medium mb-0.5">Pioggia</p>
                     <div id="mainRainBox" class="flex flex-col items-center justify-center text-center">
@@ -272,10 +287,9 @@
             96: { label: 'Temporale con Grandine', icon: 'thunder' }
         };
 
-        // Generate 5 rain dots HTML graded from Celeste (cyan) to Viola (purple) based on mm
-        // Returns empty string if no rain is expected
+        // Generate 5 rain dots HTML graded from Celeste to Viola based on mm
         function getRainDotsHTML(rainMm) {
-            if (!rainMm || rainMm <= 0) return ''; // Do not display anything when no rain
+            if (!rainMm || rainMm <= 0) return '';
 
             let activeCount = 0;
             if (rainMm > 0 && rainMm <= 0.8) activeCount = 1;
@@ -286,13 +300,12 @@
 
             if (activeCount === 0) return '';
 
-            // Colors based on intensity level (Celeste -> Viola)
             const colors = [
-                'bg-cyan-300 shadow-[0_0_6px_#67e8f9]',    // Livello 1: Celeste chiaro
-                'bg-sky-400 shadow-[0_0_6px_#38bdf8]',     // Livello 2: Azzurro
-                'bg-indigo-400 shadow-[0_0_6px_#818cf8]',  // Livello 3: Indaco
-                'bg-purple-400 shadow-[0_0_6px_#c084fc]',  // Livello 4: Viola chiaro
-                'bg-fuchsia-500 shadow-[0_0_6px_#d946ef]'  // Livello 5: Viola intenso
+                'bg-cyan-300 shadow-[0_0_6px_#67e8f9]',
+                'bg-sky-400 shadow-[0_0_6px_#38bdf8]',
+                'bg-indigo-400 shadow-[0_0_6px_#818cf8]',
+                'bg-purple-400 shadow-[0_0_6px_#c084fc]',
+                'bg-fuchsia-500 shadow-[0_0_6px_#d946ef]'
             ];
 
             const activeColor = colors[activeCount - 1];
@@ -308,7 +321,7 @@
             return html;
         }
 
-        // Utility to check if a given hour falls into night time (21:00 - 05:59)
+        // Check if hour is night time (21:00 - 05:59)
         function checkIsNight(hour) {
             return hour >= 21 || hour < 6;
         }
@@ -360,6 +373,7 @@
             setupSearch();
             setupGeoLocation();
             setupModalEvents();
+            setupThemeToggle();
 
             // Toggle Radar map expanded height
             const toggleBtn = document.getElementById('toggleRadarHeight');
@@ -380,6 +394,38 @@
             }
         });
 
+        // Theme Toggle Logic
+        function setupThemeToggle() {
+            const themeBtn = document.getElementById('themeToggleBtn');
+            const appBody = document.getElementById('appBody');
+            const iconSun = document.getElementById('themeIconSun');
+            const iconMoon = document.getElementById('themeIconMoon');
+
+            // Load saved theme preference
+            const savedTheme = localStorage.getItem('meteo_theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                appBody.className = "bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100 min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500";
+                iconSun.classList.remove('hidden');
+                iconMoon.classList.add('hidden');
+            }
+
+            themeBtn.onclick = () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                if (isDark) {
+                    localStorage.setItem('meteo_theme', 'dark');
+                    appBody.className = "bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100 min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500";
+                    iconSun.classList.remove('hidden');
+                    iconMoon.classList.add('hidden');
+                } else {
+                    localStorage.setItem('meteo_theme', 'light');
+                    appBody.className = "bg-gradient-to-br from-slate-900 via-sky-900 to-blue-950 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500";
+                    iconSun.classList.add('hidden');
+                    iconMoon.classList.remove('hidden');
+                }
+            };
+        }
+
         // Initialize and Update Leaflet Radar Map with deep zoom support
         function initRadarMap(lat, lon) {
             if (!radarMap) {
@@ -392,7 +438,6 @@
                     touchZoom: true
                 }).setView([lat, lon], 9);
                 
-                // Dark basemap background with support for high zoom levels (zoom 19)
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
                     maxZoom: 19,
                     maxNativeZoom: 19,
@@ -404,7 +449,6 @@
                 radarMap.setView([lat, lon], 9);
             }
 
-            // Position marker for currently searched location
             if (cityMarker) {
                 radarMap.removeLayer(cityMarker);
             }
@@ -428,7 +472,6 @@
                 
                 if (data && data.radar && data.radar.past && data.radar.past.length > 0) {
                     const latest = data.radar.past[data.radar.past.length - 1];
-                    // Utilizing 512px tile resolution with maxNativeZoom so Leaflet scales up tiles on high zoom levels
                     const tileUrl = `${data.host}${latest.path}/512/{z}/{x}/{y}/2/1_1.png`;
 
                     if (radarLayer) {
@@ -439,7 +482,7 @@
                         opacity: 0.75,
                         tileSize: 512,
                         zoomOffset: -1,
-                        maxNativeZoom: 7, // RainViewer 512px tiles native scale limit; Leaflet automatically upscales smoothly up to zoom 18
+                        maxNativeZoom: 7,
                         maxZoom: 18,
                         zIndex: 100
                     }).addTo(radarMap);
@@ -454,7 +497,6 @@
             }
         }
 
-        // Toast message notification
         function showToast(msg) {
             const toast = document.getElementById('toast');
             document.getElementById('toastMsg').innerText = msg;
@@ -484,16 +526,13 @@
                         if (data.results && data.results.length > 0) {
                             searchResults.innerHTML = '';
                             data.results.forEach(item => {
-                                const admin1 = item.admin1 ? ` (${item.admin1})` : '';
-                                const name = `${item.name}${admin1}`;
-
                                 const div = document.createElement('div');
                                 div.className = 'p-2.5 hover:bg-white/10 cursor-pointer transition flex items-center justify-between text-white';
                                 div.innerHTML = `<span class="font-medium">${item.name}</span> <span class="text-xs text-sky-200">${item.admin1 || ''}</span>`;
                                 div.onclick = () => {
                                     cityInput.value = item.name;
                                     searchResults.classList.add('hidden');
-                                    fetchWeatherForLocation(item.latitude, item.longitude, name);
+                                    fetchWeatherForLocation(item.latitude, item.longitude, item.name);
                                 };
                                 searchResults.appendChild(div);
                             });
@@ -542,7 +581,6 @@
             try {
                 const params = `latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation_probability,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,precipitation_probability_max,precipitation_sum&timezone=auto`;
                 
-                // Fetch ICON-D2 (0-48h high-resolution) and ECMWF IFS (global 7-day model)
                 const [iconRes, ecmwfRes] = await Promise.allSettled([
                     fetch(`https://api.open-meteo.com/v1/forecast?${params}&models=icon_d2`),
                     fetch(`https://api.open-meteo.com/v1/forecast?${params}&models=ecmwf_ifs025`)
@@ -553,7 +591,6 @@
                     iconData = await iconRes.value.json();
                 }
 
-                // Fallback to ICON Europe / Seamless if ICON-D2 domain is out of range for location
                 if (!iconData || !iconData.hourly || !iconData.hourly.temperature_2m || iconData.hourly.temperature_2m.length === 0) {
                     const fallbackIcon = await fetch(`https://api.open-meteo.com/v1/forecast?${params}&models=icon_seamless`);
                     if (fallbackIcon.ok) iconData = await fallbackIcon.json();
@@ -569,7 +606,6 @@
                     ecmwfData = await fallbackRes.json();
                 }
 
-                // Merge ICON-D2 data for first 48 hours with ECMWF IFS for extended 7-day forecast
                 const baseData = (iconData && iconData.current) ? iconData : ecmwfData;
                 const mergedHourly = { ...ecmwfData.hourly };
 
@@ -608,32 +644,24 @@
         function renderWeatherUI(data) {
             const current = data.current;
 
-            // City & Date
             document.getElementById('cityName').innerText = data.locationName;
             const now = new Date();
             document.getElementById('currentDate').innerText = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
 
-            // Model last run update timestamp - Display only time HH:MM
             if (current.time) {
                 const modelDate = new Date(current.time);
-                const formattedModelTime = modelDate.toLocaleTimeString('it-IT', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+                const formattedModelTime = modelDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
                 document.getElementById('modelUpdate').innerText = `ultimo aggiornamento: ${formattedModelTime}`;
             }
 
-            // Weather Code & Enlarged Icon
             const weatherInfo = WEATHER_CODES[current.weather_code] || { label: 'Sereno', icon: 'sun' };
             const isNightMain = checkIsNight(now.getHours());
             document.getElementById('weatherBadge').innerText = weatherInfo.label;
             document.getElementById('mainWeatherIcon').innerHTML = getSVGIcon(weatherInfo.icon, "w-20 h-20 sm:w-24 sm:h-24", isNightMain);
 
-            // Main Temp & Feels Like
             document.getElementById('mainTemp').innerText = Math.round(current.temperature_2m);
             document.getElementById('feelsLike').innerText = `Percepita: ${Math.round(current.apparent_temperature)}°C`;
 
-            // Main Wind Speed & Rotating Arrow on row below temp
             const windSpeed = Math.round(current.wind_speed_10m);
             const windDeg = current.wind_direction_10m;
             const windSpeedEl = document.getElementById('mainWindSpeed');
@@ -645,7 +673,6 @@
                 windSpeedEl.className = "font-bold text-white";
             }
             
-            // Rotate Arrow
             const arrowEl = document.getElementById('mainWindArrow');
             arrowEl.style.transform = `rotate(${windDeg}deg)`;
             if (windSpeed >= 40) {
@@ -656,11 +683,9 @@
                 arrowEl.classList.remove('text-red-400');
             }
 
-            // Secondary metrics
             document.getElementById('humidity').innerText = `${current.relative_humidity_2m}%`;
             document.getElementById('pressure').innerText = `${Math.round(current.surface_pressure)} hPa`;
             
-            // Current rain volume (mm), probability (%) & dots on 3 stacked lines
             const currentHourIndex = now.getHours();
             const rainProb = data.hourly.precipitation_probability ? (data.hourly.precipitation_probability[currentHourIndex] || 0) : 0;
             const rainMm = data.hourly.precipitation ? (data.hourly.precipitation[currentHourIndex] || 0) : 0;
@@ -682,7 +707,6 @@
                 mainRainBox.classList.remove('hidden');
             }
 
-            // Render Subsections
             renderTodayHourly(data);
             renderDailyForecast(data);
             checkHailAlert(data);
@@ -702,7 +726,6 @@
 
             for (let i = currentHourIndex; i < cutoff; i++) {
                 const code = data.hourly.weather_code[i];
-                // WMO codes 96 and 99 correspond to thunderstorms with hail
                 if (code === 96 || code === 99) {
                     hailDetected = true;
                     if (data.hourly.time && data.hourly.time[i]) {
@@ -716,7 +739,6 @@
             }
 
             if (hailDetected && hailHours.length > 0) {
-                // Group continuous hours into intervals
                 const intervals = [];
                 let currentRange = [hailHours[0]];
 
@@ -732,10 +754,8 @@
                 }
                 intervals.push(currentRange);
 
-                // Format each continuous interval
                 const formattedIntervals = intervals.map(range => {
                     const start = range[0].date;
-                    // End boundary is 1 hour after the last hour block starts
                     const end = new Date(range[range.length - 1].date.getTime() + 60 * 60 * 1000);
 
                     const startDay = start.toLocaleDateString('it-IT', { weekday: 'short' });
@@ -751,7 +771,6 @@
                     }
                 });
 
-                // Determine estimated hail diameter
                 const maxCode = Math.max(...hailHours.map(h => h.code));
                 let sizeText = "Dimensione stimata chicchi: ~0.5 - 1.5 cm";
                 if (maxCode === 99) {
@@ -789,7 +808,6 @@
                 const rainMm = data.hourly.precipitation ? (data.hourly.precipitation[i] || 0) : 0;
                 const rainProb = data.hourly.precipitation_probability ? (data.hourly.precipitation_probability[i] || 0) : 0;
 
-                // 3 stacked lines for rain: %, mm, dots
                 const rainDisplay = (rainMm > 0 || rainProb > 0) 
                     ? `<span class="text-[10px] font-medium text-sky-200/80 leading-tight">${rainProb}%</span>
                        <span class="text-[11px] font-bold text-sky-100 leading-tight">${rainMm.toFixed(1)} mm</span>
@@ -806,7 +824,6 @@
                     <span class="text-[11px] font-medium text-white/80">${i === currentHour ? 'Ora' : hourFormatted}</span>
                     <div class="my-0.5 flex items-center justify-center">${getSVGIcon(wInfo.icon, "w-7 h-7", isNight)}</div>
                     
-                    <!-- Temp e Vento su 2 righe -->
                     <div class="flex flex-col items-center gap-0.5 my-0.5">
                         <span class="text-base font-bold text-white">${temp}°C</span>
                         <div class="flex items-center justify-center gap-1 text-[10px] ${windClass}">
@@ -815,7 +832,6 @@
                         </div>
                     </div>
 
-                    <!-- Pioggia su 3 righe (%, mm, pallini) -->
                     <div class="flex flex-col items-center justify-center text-center w-full min-h-[18px]">
                         ${rainDisplay}
                     </div>
@@ -847,7 +863,6 @@
                 const rainSum = daily.precipitation_sum ? (daily.precipitation_sum[i] || 0) : 0;
                 const rainProbMax = daily.precipitation_probability_max ? (daily.precipitation_probability_max[i] || 0) : 0;
 
-                // 3 stacked lines for rain: %, mm, dots
                 const rainDisplay = (rainSum > 0 || rainProbMax > 0)
                     ? `<span class="text-[10px] font-medium text-sky-200/80 leading-tight">${rainProbMax}%</span>
                        <span class="text-[11px] font-bold text-sky-100 leading-tight">${rainSum.toFixed(1)} mm</span>
@@ -870,12 +885,10 @@
                         <span class="text-xs text-white/70 truncate hidden sm:inline">${wInfo.label}</span>
                     </div>
 
-                    <!-- Pioggia centrata su 3 righe sovrapposte (%, mm, pallini) -->
                     <div class="flex flex-col items-center justify-center text-center w-24">
                         ${rainDisplay}
                     </div>
 
-                    <!-- Temperatura (Sopra Max/Min) e Vento (Sotto Velocità + Freccia) -->
                     <div class="flex flex-col items-end justify-center text-right shrink-0 gap-0.5">
                         <div class="text-sm sm:text-base font-semibold">
                             <span class="text-white font-extrabold text-base sm:text-lg">${maxTemp}°</span>
@@ -925,10 +938,9 @@
                 const windSpeed = Math.round(currentWeatherData.hourly.wind_speed_10m[i]);
                 const windDeg = currentWeatherData.hourly.wind_direction_10m[i];
 
-                // 3 stacked lines for rain: %, mm, dots
                 const rainDisplay = (rainMm > 0 || rainProb > 0)
-                    ? `<span class="text-xs font-semibold text-sky-200/90 leading-tight">${rainProb}%</span>
-                       <span class="text-xs sm:text-sm font-extrabold text-sky-100 leading-tight">${rainMm.toFixed(1)} mm</span>
+                    ? `<span class="text-xs sm:text-sm font-semibold text-sky-200/90 leading-tight">${rainProb}%</span>
+                       <span class="text-sm sm:text-base font-extrabold text-sky-100 leading-tight">${rainMm.toFixed(1)} mm</span>
                        <div class="flex items-center justify-center gap-1 mt-0.5">${getRainDotsHTML(rainMm)}</div>`
                     : ``;
 
@@ -937,27 +949,25 @@
                 const windArrowClass = isStrongWind ? 'text-red-400' : 'text-sky-300';
 
                 const item = document.createElement('div');
-                item.className = 'flex items-center justify-between p-2.5 sm:p-3 bg-white/5 hover:bg-white/15 rounded-xl transition border border-white/10 text-sm gap-1';
+                item.className = 'flex items-center justify-between p-3 sm:p-3.5 bg-white/5 hover:bg-white/15 rounded-xl transition border border-white/10 text-base gap-2';
                 
                 item.innerHTML = `
-                    <div class="w-14 sm:w-16 font-bold text-sky-200 text-sm sm:text-base shrink-0">${hourStr}</div>
+                    <div class="w-16 sm:w-20 font-bold text-sky-200 text-base sm:text-lg shrink-0">${hourStr}</div>
                     
-                    <div class="flex items-center justify-center gap-1.5 w-12 sm:w-32">
-                        ${getSVGIcon(wInfo.icon, "w-8 h-8 sm:w-9 sm:h-9", isNight)}
-                        <span class="text-xs sm:text-sm text-white/80 truncate hidden sm:inline">${wInfo.label}</span>
+                    <div class="flex items-center justify-center gap-2 w-16 sm:w-36">
+                        ${getSVGIcon(wInfo.icon, "w-9 h-9 sm:w-10 sm:h-10", isNight)}
+                        <span class="text-xs sm:text-sm text-white/90 truncate hidden sm:inline">${wInfo.label}</span>
                     </div>
 
-                    <!-- Pioggia centrata su 3 righe sovrapposte (%, mm, pallini) -->
-                    <div class="flex flex-col items-center justify-center text-center w-24">
+                    <div class="flex flex-col items-center justify-center text-center w-28">
                         ${rainDisplay}
                     </div>
 
-                    <!-- Temperatura (Sopra) e Vento (Sotto Velocità + Freccia) -->
                     <div class="flex flex-col items-end justify-center text-right shrink-0 gap-0.5">
-                        <span class="text-white font-extrabold text-base sm:text-lg">${temp}°C</span>
-                        <div class="flex items-center justify-end gap-1 text-xs sm:text-sm ${windTextClass} bg-black/10 px-1.5 py-0.5 rounded-md border border-white/5">
+                        <span class="text-white font-extrabold text-lg sm:text-xl">${temp}°C</span>
+                        <div class="flex items-center justify-end gap-1.5 text-xs sm:text-sm ${windTextClass} bg-black/15 px-2 py-0.5 rounded-md border border-white/5">
                             <span class="font-semibold text-xs sm:text-sm">${windSpeed} km/h</span>
-                            <svg class="w-3.5 h-3.5 ${windArrowClass} transition-transform" style="transform: rotate(${windDeg}deg)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 ${windArrowClass} transition-transform" style="transform: rotate(${windDeg}deg)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
                             </svg>
                         </div>
