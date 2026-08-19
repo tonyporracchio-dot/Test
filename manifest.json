@@ -1,1 +1,15 @@
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+{
+  "name": "Meteo Pro",
+  "short_name": "Meteo",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0284c7",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
