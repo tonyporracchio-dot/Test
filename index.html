@@ -103,8 +103,8 @@
             </button>
 
             <!-- Icon Style Selector Button (iOS Vuote vs Piene) -->
-            <button id="iconStyleBtn" title="Cambia Stile Icone" class="px-2.5 py-2.5 bg-sky-500/30 hover:bg-sky-500/50 active:scale-95 rounded-xl transition text-white font-bold text-[10px] tracking-wider uppercase flex items-center justify-center shrink-0 border border-white/20">
-                <span id="iconStyleLabel">iOS Vuote</span>
+            <button id="iconStyleBtn" title="Cambia Stile Icone" class="p-2.5 bg-sky-500/30 hover:bg-sky-500/50 active:scale-95 rounded-xl transition text-white flex items-center justify-center shrink-0 border border-white/20">
+                <!-- L'icona viene inserita dinamicamente tramite JS -->
             </button>
 
             <!-- Dark / Light Mode Toggle Button -->
@@ -129,13 +129,11 @@
             </div>
 
             <!-- Weather Code & Header info -->
-            <div class="flex items-center justify-between text-left mb-1">
-                <div>
-                    <h1 id="cityName" class="text-xl sm:text-2xl font-bold tracking-tight">--</h1>
-                    <p id="currentDate" class="text-xs text-white/70">--</p>
-                    <p id="modelUpdate" class="text-[10px] text-sky-200/80 font-medium mt-0.5">ultimo aggiornamento: --</p>
-                </div>
-                <span id="weatherBadge" class="px-2.5 py-1 bg-white/15 text-xs font-medium rounded-full border border-white/20 uppercase tracking-wider">--</span>
+            <div class="text-left mb-2">
+                <h1 id="cityName" class="text-3xl sm:text-4xl font-extrabold tracking-tight">--</h1>
+                <p id="currentDate" class="text-xs text-white/80 mt-1">--</p>
+                <p id="modelUpdate" class="text-[10px] text-sky-200/80 font-medium mt-0.5">ultimo aggiornamento: --</p>
+                <p id="weatherDesc" class="text-base sm:text-lg font-bold text-sky-300 mt-1.5 capitalize">--</p>
             </div>
 
             <!-- Main Temp, Left Icon Stack & Wind -->
@@ -362,18 +360,18 @@
             return hour >= 21 || hour < 6;
         }
 
-        // Global Icon Style selection: 'ios-outline' (vuote) or 'ios-solid' (piene)
+        // Global Icon Style selection: 'ios-outline' (vuote) or 'apple-weather' (Apple)
         let currentIconStyle = localStorage.getItem('meteo_icon_style') || 'ios-outline';
 
-        // Weather Icon Generators supporting iOS Outline and iOS Solid
+        // Weather Icon Generators supporting iOS Outline and Apple Weather
         function getSVGIcon(type, sizeClass = "w-8 h-8", isNight = false) {
             if (isNight) {
                 if (type === 'sun') type = 'moon';
                 if (type === 'cloud-sun' || type === 'sun-cloud') type = 'cloud-moon';
             }
 
-            if (currentIconStyle === 'ios-solid') {
-                return getIOSSolidIcon(type, sizeClass, isNight);
+            if (currentIconStyle === 'apple-weather') {
+                return getAppleWeatherIcon(type, sizeClass, isNight);
             } else {
                 return getIOSOutlineIcon(type, sizeClass, isNight);
             }
@@ -408,32 +406,68 @@
             }
         }
 
-        // 2. iOS Solid Style (Piene / Sfumate)
-        function getIOSSolidIcon(type, sizeClass, isNight) {
+        // 2. Apple Weather Style (Colorate e con Ombreggiatura)
+        function getAppleWeatherIcon(type, sizeClass, isNight) {
+            const baseCloud = `<path fill="#FFFFFF" opacity="0.95" d="M19.36 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z"/>`;
+            const baseSun = `<circle cx="0" cy="0" r="4.5" fill="#FFD60A"/><path stroke="#FFD60A" stroke-width="2" stroke-linecap="round" d="M0 -9v2m0 14v2M-6.36 -6.36l1.41 1.41m9.9 9.9l1.41 1.41M-9 0h2m14 0h2M-6.36 6.36l1.41 -1.41m9.9 -9.9l1.41 -1.41"/>`;
+            const crescentMoon = `<path fill="#D1D5DB" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>`;
+
+            const wrapper = (content) => `<svg class="${sizeClass} drop-shadow-md" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">${content}</svg>`;
+
             switch(type) {
                 case 'sun':
-                    return `<svg class="${sizeClass} text-amber-300 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg>`;
+                    return wrapper(`<g transform="translate(12, 12)">${baseSun}</g>`);
                 case 'moon':
-                    return `<svg class="${sizeClass} text-indigo-200 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>`;
+                    return wrapper(crescentMoon);
                 case 'cloud-sun':
                 case 'sun-cloud':
-                    return `<svg class="${sizeClass} text-sky-200 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M19.36 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z" opacity="0.9"/><circle cx="7" cy="7" r="3" class="text-amber-300"/></svg>`;
+                    return wrapper(`
+                        <g transform="translate(17, 8) scale(0.75)">${baseSun}</g>
+                        <g transform="translate(0, 2)">${baseCloud}</g>
+                    `);
                 case 'cloud-moon':
-                    return `<svg class="${sizeClass} text-indigo-200 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M19.36 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z" opacity="0.9"/></svg>`;
+                    return wrapper(`
+                        <g transform="translate(9, 0) scale(0.7)">${crescentMoon}</g>
+                        <g transform="translate(0, 2)">${baseCloud}</g>
+                    `);
                 case 'cloud':
-                    return `<svg class="${sizeClass} text-slate-200 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M19.36 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z"/></svg>`;
+                    return wrapper(`<g transform="translate(0, 2)">${baseCloud}</g>`);
                 case 'rain-light':
+                    return wrapper(`
+                        <g transform="translate(0, -1)">${baseCloud}</g>
+                        <path stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" d="M9 16l-1 4m6-4l-1 4"/>
+                    `);
                 case 'rain':
-                    return `<svg class="${sizeClass} text-sky-300 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M19.36 9.04C18.67 5.59 15.64 3 12 3 9.11 3 6.6 4.64 5.35 7.04 2.34 7.36 0 9.91 0 13c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 17l-1 4m5-4l-1 4m5-4l-1 4"/></svg>`;
+                    return wrapper(`
+                        <g transform="translate(0, -2)">${baseCloud}</g>
+                        <path stroke="#38BDF8" stroke-width="2" stroke-linecap="round" d="M7 15l-1 5m5-5l-1 5m5-5l-1 5"/>
+                    `);
                 case 'rain-heavy':
                 case 'thunder':
-                    return `<svg class="${sizeClass} text-indigo-300 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M19.36 9.04C18.67 5.59 15.64 3 12 3 9.11 3 6.6 4.64 5.35 7.04 2.34 7.36 0 9.91 0 13c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 16l-2 5h4l-2 4"/></svg>`;
+                    if (type === 'thunder') {
+                        return wrapper(`
+                            <g transform="translate(0, -2)">${baseCloud}</g>
+                            <path fill="#FFD60A" stroke="#FFD60A" stroke-width="1" stroke-linejoin="round" d="M12 12l-3 5h3l-1 5 4-6h-3l2-4z"/>
+                        `);
+                    }
+                    return wrapper(`
+                        <g transform="translate(0, -3)">${baseCloud}</g>
+                        <path stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" d="M5 14l-1.5 6m5-6l-1.5 6m5-6l-1.5 6m5-6l-1.5 6"/>
+                    `);
                 case 'snow':
-                    return `<svg class="${sizeClass} text-sky-100 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M19.36 9.04C18.67 5.59 15.64 3 12 3 9.11 3 6.6 4.64 5.35 7.04 2.34 7.36 0 9.91 0 13c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.64-4.96z"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10 17v3m4-3v3m-5-1h6"/></svg>`;
+                    return wrapper(`
+                        <g transform="translate(0, -3)">${baseCloud}</g>
+                        <circle cx="7" cy="18" r="1.5" fill="#E0F2FE"/>
+                        <circle cx="12" cy="20" r="1.5" fill="#E0F2FE"/>
+                        <circle cx="17" cy="18" r="1.5" fill="#E0F2FE"/>
+                    `);
                 case 'fog':
-                    return `<svg class="${sizeClass} text-slate-300 drop-shadow" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M4 8h16M3 12h18M5 16h14"/></svg>`;
+                    return wrapper(`
+                        <g transform="translate(0, -3)">${baseCloud}</g>
+                        <path stroke="#E5E7EB" stroke-width="2" stroke-linecap="round" d="M6 17h12M4 20h16"/>
+                    `);
                 default:
-                    return `<svg class="${sizeClass} text-amber-300 drop-shadow" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>`;
+                    return wrapper(`<g transform="translate(12, 12)">${baseSun}</g>`);
             }
         }
 
@@ -449,9 +483,40 @@
         let currentRadarFrameIndex = 0;
         let isRadarPlaying = false;
 
+        async function getCityName(lat, lon) {
+            try {
+                // Utilizziamo BigDataCloud per il reverse geocoding (gratuito lato client)
+                const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=it`);
+                const data = await res.json();
+                return data.city || data.locality || "La tua Posizione";
+            } catch (e) {
+                return "La tua Posizione";
+            }
+        }
+
+        function initAppWithLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const cityName = await getCityName(lat, lon);
+                        fetchWeatherForLocation(lat, lon, cityName);
+                    },
+                    (err) => {
+                        // Fallback in caso i permessi di localizzazione vengano negati
+                        fetchWeatherForLocation(45.4642, 9.1900, "Milano");
+                    },
+                    { timeout: 10000 }
+                );
+            } else {
+                fetchWeatherForLocation(45.4642, 9.1900, "Milano");
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Default city: Milano
-            fetchWeatherForLocation(45.4642, 9.1900, "Milano");
+            // Avvio automatico usando la posizione del dispositivo
+            initAppWithLocation();
 
             setupSearch();
             setupGeoLocation();
@@ -484,19 +549,25 @@
         // Icon Style Toggle Logic
         function setupIconStyleToggle() {
             const btn = document.getElementById('iconStyleBtn');
-            const label = document.getElementById('iconStyleLabel');
             
-            const styles = ['ios-outline', 'ios-solid'];
-            const labels = { 'ios-outline': 'iOS Vuote', 'ios-solid': 'iOS Piene' };
+            const styles = ['ios-outline', 'apple-weather'];
+            const labels = { 'ios-outline': 'iOS Vuote', 'apple-weather': 'Apple Meteo' };
 
-            label.innerText = labels[currentIconStyle] || 'iOS Vuote';
+            const updateBtnIcon = () => {
+                btn.innerHTML = getSVGIcon('cloud-sun', 'w-5 h-5', false);
+            };
+
+            // Inizializza l'icona sul pulsante
+            updateBtnIcon();
 
             btn.onclick = () => {
                 let currentIndex = styles.indexOf(currentIconStyle);
                 currentIndex = (currentIndex + 1) % styles.length;
                 currentIconStyle = styles[currentIndex];
                 localStorage.setItem('meteo_icon_style', currentIconStyle);
-                label.innerText = labels[currentIconStyle];
+                
+                // Aggiorna l'icona sul pulsante stesso
+                updateBtnIcon();
 
                 showToast(`Stile icone: ${labels[currentIconStyle]}`);
                 if (currentWeatherData) {
@@ -774,7 +845,8 @@
                         async (position) => {
                             const lat = position.coords.latitude;
                             const lon = position.coords.longitude;
-                            fetchWeatherForLocation(lat, lon, "La tua Posizione");
+                            const cityName = await getCityName(lat, lon);
+                            fetchWeatherForLocation(lat, lon, cityName);
                         },
                         (err) => {
                             showToast("Impossibile accedere alla tua posizione.");
@@ -868,7 +940,10 @@
 
             const weatherInfo = WEATHER_CODES[current.weather_code] || { label: 'Sereno', icon: 'sun' };
             const isNightMain = checkIsNight(now.getHours());
-            document.getElementById('weatherBadge').innerText = weatherInfo.label;
+            
+            const weatherDescEl = document.getElementById('weatherDesc');
+            if (weatherDescEl) weatherDescEl.innerText = weatherInfo.label;
+            
             document.getElementById('mainWeatherIcon').innerHTML = getSVGIcon(weatherInfo.icon, "w-20 h-20 sm:w-24 sm:h-24", isNightMain);
 
             document.getElementById('mainTemp').innerText = Math.round(current.temperature_2m);
