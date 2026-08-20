@@ -66,6 +66,11 @@
             background: rgba(15, 23, 42, 0.65);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
+        /* Fluid Radar Animation */
+        .radar-layer-transition {
+            transition: opacity 0.4s ease-in-out;
+        }
         
         body { 
             font-family: 'Inter', sans-serif; 
@@ -74,13 +79,13 @@
         }
     </style>
 </head>
-<body id="appBody" class="bg-gradient-to-br from-slate-900 via-sky-900 to-blue-950 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500">
+<body id="appBody" class="bg-gradient-to-br from-sky-500 via-sky-600 to-blue-700 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500">
 
     <!-- App Container -->
     <div class="w-full max-w-md md:max-w-xl mx-auto px-1 pt-1 sm:px-3 sm:pt-3 space-y-2">
         
         <!-- Top Navigation / Search Bar -->
-        <header class="glass-panel rounded-2xl p-2 flex items-center justify-between gap-2 shadow-lg">
+        <header class="relative z-50 glass-panel rounded-2xl p-2 flex items-center justify-between gap-2 shadow-lg">
             <div class="relative flex-1">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-sky-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,11 +134,15 @@
             </div>
 
             <!-- Weather Code & Header info -->
-            <div class="text-left mb-2">
-                <h1 id="cityName" class="text-3xl sm:text-4xl font-extrabold tracking-tight">--</h1>
-                <p id="currentDate" class="text-xs text-white/80 mt-1">--</p>
-                <p id="modelUpdate" class="text-[10px] text-sky-200/80 font-medium mt-0.5">ultimo aggiornamento: --</p>
-                <p id="weatherDesc" class="text-base sm:text-lg font-bold text-sky-300 mt-1.5 capitalize">--</p>
+            <div class="flex items-start justify-between mb-2 gap-2">
+                <div class="text-left flex-1 min-w-0">
+                    <h1 id="cityName" class="text-3xl sm:text-4xl font-extrabold tracking-tight truncate">--</h1>
+                    <p id="weatherDesc" class="text-base sm:text-lg font-bold text-sky-300 mt-1 capitalize">--</p>
+                </div>
+                <div class="text-right shrink-0 mt-1.5">
+                    <p id="currentDate" class="text-xs text-white/80">--</p>
+                    <p id="modelUpdate" class="text-[10px] text-sky-200/80 font-medium mt-0.5">aggiornato: --</p>
+                </div>
             </div>
 
             <!-- Main Temp, Left Icon Stack & Wind -->
@@ -474,11 +483,12 @@
         // Global Application State
         let currentWeatherData = null;
         let radarMap = null;
-        let radarLayer = null;
+        let radarLayers = []; // Changed to array for smooth crossfade
         let cityMarker = null;
         
         // Radar Animation State
         let radarDataFrames = [];
+        let radarPastCount = 0;
         let radarAnimationInterval = null;
         let currentRadarFrameIndex = 0;
         let isRadarPlaying = false;
@@ -507,7 +517,7 @@
                         // Fallback in caso i permessi di localizzazione vengano negati
                         fetchWeatherForLocation(45.4642, 9.1900, "Milano");
                     },
-                    { timeout: 10000 }
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
             } else {
                 fetchWeatherForLocation(45.4642, 9.1900, "Milano");
@@ -593,7 +603,7 @@
                 iconMoon.classList.add('hidden');
                 themeMeta.setAttribute('content', '#020617'); // Very dark blue/black for dark mode
             } else {
-                themeMeta.setAttribute('content', '#0f172a'); // Slate 900 for light mode
+                themeMeta.setAttribute('content', '#0284c7'); // Sky 600 for light mode
             }
 
             themeBtn.onclick = () => {
@@ -606,10 +616,10 @@
                     themeMeta.setAttribute('content', '#020617');
                 } else {
                     localStorage.setItem('meteo_theme', 'light');
-                    appBody.className = "bg-gradient-to-br from-slate-900 via-sky-900 to-blue-950 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500";
+                    appBody.className = "bg-gradient-to-br from-sky-500 via-sky-600 to-blue-700 text-white min-h-full pb-6 selection:bg-sky-500 selection:text-white transition-colors duration-500";
                     iconSun.classList.add('hidden');
                     iconMoon.classList.remove('hidden');
-                    themeMeta.setAttribute('content', '#0f172a');
+                    themeMeta.setAttribute('content', '#0284c7');
                 }
             };
         }
@@ -666,17 +676,40 @@
                 if (data && data.radar && data.radar.past && data.radar.nowcast) {
                     // Combine past and future (nowcast) frames
                     radarDataFrames = [...data.radar.past, ...data.radar.nowcast];
+                    radarPastCount = data.radar.past.length;
                     const host = data.host;
+                    
+                    // Clear old layers
+                    radarLayers.forEach(layer => radarMap.removeLayer(layer));
+                    radarLayers = [];
+
+                    // Preload all layers to avoid flickering
+                    radarDataFrames.forEach((frame) => {
+                        const baseUrl = host || 'https://api.rainviewer.com';
+                        // Use smooth map Option (1_1.png) and smooth CSS class
+                        const tileUrl = `${baseUrl}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+                        
+                        const layer = L.tileLayer(tileUrl, {
+                            opacity: 0,
+                            tileSize: 256,
+                            maxNativeZoom: 7,
+                            maxZoom: 18,
+                            zIndex: 100,
+                            className: 'radar-layer-transition' // smooth transition
+                        }).addTo(radarMap);
+                        
+                        radarLayers.push(layer);
+                    });
                     
                     // Setup slider
                     const slider = document.getElementById('radarSlider');
                     slider.min = 0;
                     slider.max = radarDataFrames.length - 1;
-                    slider.value = data.radar.past.length - 1; // Start at 'now'
+                    slider.value = radarPastCount > 0 ? radarPastCount - 1 : 0; // Start at 'now'
                     slider.disabled = false;
                     
                     // Display initial frame
-                    showRadarFrame(slider.value, host);
+                    showRadarFrame(slider.value);
                 }
             } catch (err) {
                 console.error("Errore caricamento radar:", err);
@@ -686,40 +719,36 @@
             }
         }
 
-        function showRadarFrame(index, host) {
+        function showRadarFrame(index) {
             currentRadarFrameIndex = parseInt(index);
             const frameData = radarDataFrames[currentRadarFrameIndex];
             
             if (!frameData) return;
 
-            // Optional: fallback to api.rainviewer.com if host is not provided
-            const baseUrl = host || 'https://api.rainviewer.com';
-            
-            // Construct tile URL (using smooth color scheme option 2)
-            const tileUrl = `${baseUrl}${frameData.path}/256/{z}/{x}/{y}/2/1_1.png`;
-
-            if (radarLayer) {
-                radarMap.removeLayer(radarLayer);
-            }
-
-            radarLayer = L.tileLayer(tileUrl, {
-                opacity: 0.8,
-                tileSize: 256,
-                maxNativeZoom: 7,
-                maxZoom: 18,
-                zIndex: 100
-            }).addTo(radarMap);
+            // Fade between layers by adjusting opacity (smooth transition via CSS)
+            radarLayers.forEach((layer, i) => {
+                if (i === currentRadarFrameIndex) {
+                    layer.setOpacity(0.85);
+                } else {
+                    layer.setOpacity(0);
+                }
+            });
 
             // Update Time Label
             const radarDate = new Date(frameData.time * 1000);
             const formattedRadarTime = radarDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
             
-            const isFuture = currentRadarFrameIndex >= (radarDataFrames.findIndex(f => !f.past) > -1 ? radarDataFrames.findIndex(f => !f.past) : radarDataFrames.length);
+            const isFuture = currentRadarFrameIndex >= radarPastCount;
+            let prefix = "";
             
-            document.getElementById('radarTime').innerHTML = `
-                ${isFuture ? '<span class="text-amber-300">Prev:</span>' : ''} 
-                ${formattedRadarTime}
-            `;
+            if (isFuture) {
+                const minutesFuture = (currentRadarFrameIndex - radarPastCount + 1) * 10; 
+                prefix = `<span class="text-amber-400 font-bold">Stima +${minutesFuture}m:</span> `;
+            } else if (currentRadarFrameIndex === radarPastCount - 1) {
+                prefix = `<span class="text-sky-300 font-bold">Ora:</span> `;
+            }
+            
+            document.getElementById('radarTime').innerHTML = `${prefix}${formattedRadarTime}`;
             
             // Sync slider if called from animation loop
             document.getElementById('radarSlider').value = currentRadarFrameIndex;
@@ -760,9 +789,8 @@
                             return;
                         }
                         
-                        // We need the host from the first fetch, assuming it's consistent or using default
-                        showRadarFrame(nextIndex, 'https://api.rainviewer.com'); 
-                    }, 600); // Frame duration (ms)
+                        showRadarFrame(nextIndex); 
+                    }, 500); // Frame duration (ms) - slightly faster for fluidity
                     
                 } else {
                     playBtn.innerHTML = playIcon;
@@ -776,7 +804,7 @@
                 if (isRadarPlaying) {
                     playBtn.click(); // Pause if manually scrubbing
                 }
-                showRadarFrame(e.target.value, 'https://api.rainviewer.com');
+                showRadarFrame(e.target.value);
             });
         }
 
@@ -850,7 +878,8 @@
                         },
                         (err) => {
                             showToast("Impossibile accedere alla tua posizione.");
-                        }
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 } else {
                     showToast("Geolocalizzazione non supportata dal tuo browser.");
@@ -935,7 +964,7 @@
             if (current.time) {
                 const modelDate = new Date(current.time);
                 const formattedModelTime = modelDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-                document.getElementById('modelUpdate').innerText = `ultimo aggiornamento: ${formattedModelTime}`;
+                document.getElementById('modelUpdate').innerText = `aggiornato: ${formattedModelTime}`;
             }
 
             const weatherInfo = WEATHER_CODES[current.weather_code] || { label: 'Sereno', icon: 'sun' };
