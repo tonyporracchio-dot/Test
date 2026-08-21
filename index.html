@@ -339,92 +339,153 @@
         };
 
         /**
-         * Custom Hail Probability Index Calculator
+         * Custom Hail Probability Index Calculator (HSR v3)
          * Takes meteorological inputs and computes hail probability (0-100%) and estimated stone size.
-         * Mandatory parameters:
-         * - cape (J/kg) — MUCAPE
-         * - shear_0_6km (m/s)
-         * - freezing_level (m)
-         * - lapse_rate_700_500 (°C/km)
-         * Optional parameters:
-         * - cin (J/kg)
-         * - convective_mode ("isolated" | "multicell" | "linear")
          */
         function calculateHailIndex(params) {
             const {
                 cape = 0,
-                shear_0_6km = 0,
-                freezing_level = 3000,
-                lapse_rate_700_500 = 6.0,
                 cin = 0,
-                convective_mode = 'multicell'
+                u850, v850,
+                u500, v500,
+                t700, t500,
+                z700, z500,
+                freezing_level,
+                precip = 0,
+                fallback_shear = 15
             } = params;
 
-            // 1. CAPE (MUCAPE) Score component (0 to 35 pts)
-            // Higher CAPE provides stronger updrafts. Optimal for large hail > 1500 J/kg
-            let capeScore = 0;
-            if (cape >= 3500) capeScore = 35;
-            else if (cape >= 2000) capeScore = 30;
-            else if (cape >= 1200) capeScore = 22;
-            else if (cape >= 600) capeScore = 12;
-            else if (cape >= 300) capeScore = 5;
-
-            // 2. Wind Shear 0-6km Score component (0 to 25 pts)
-            // Essential for storm organization and supercell development (optimal 15-25 m/s)
-            let shearScore = 0;
-            if (shear_0_6km >= 20 && shear_0_6km <= 32) shearScore = 25;
-            else if (shear_0_6km >= 15 && shear_0_6km < 20) shearScore = 20;
-            else if (shear_0_6km >= 10 && shear_0_6km < 15) shearScore = 12;
-            else if (shear_0_6km > 32) shearScore = 18; // Extreme shear can sometimes disrupt or shred updrafts
-            else if (shear_0_6km >= 6 && shear_0_6km < 10) shearScore = 5;
-
-            // 3. Freezing Level (0-3000m altitude) Score component (0 to 20 pts)
-            // Lower freezing levels mean ice melts less before reaching the ground
-            let freezingScore = 0;
-            if (freezing_level >= 2000 && freezing_level <= 3200) freezingScore = 20; // Sweet spot for large hail in Europe/Italy
-            else if (freezing_level > 3200 && freezing_level <= 3800) freezingScore = 12;
-            else if (freezing_level > 1200 && freezing_level < 2000) freezingScore = 15;
-            else if (freezing_level <= 1200) freezingScore = 8; // Too low can produce small soft hail/graupel rather than destructive hail
-            else if (freezing_level > 3800) freezingScore = 3; // Too high, stones melt completely
-
-            // 4. Mid-level Lapse Rate (700-500 hPa) Score component (0 to 15 pts)
-            // Steeper lapse rates (> 6.5 °C/km) boost buoyancy aloft
-            let lapseScore = 0;
-            if (lapse_rate_700_500 >= 7.5) lapseScore = 15;
-            else if (lapse_rate_700_500 >= 6.8) lapseScore = 12;
-            else if (lapse_rate_700_500 >= 6.2) lapseScore = 8;
-            else if (lapse_rate_700_500 >= 5.5) lapseScore = 4;
-
-            // 5. CIN Inhibitor & Convective Mode multiplier
-            let modeMultiplier = 1.0;
-            if (convective_mode === 'isolated') modeMultiplier = 1.25; // Supercells have maximum hail efficiency
-            else if (convective_mode === 'multicell') modeMultiplier = 1.0;
-            else if (convective_mode === 'linear') modeMultiplier = 0.85;
-
-            // CIN penalty if cap is excessively strong and prevents triggering
-            let cinPenalty = 1.0;
-            if (cin < -150) cinPenalty = 0.6;
-            else if (cin < -80) cinPenalty = 0.85;
-
-            const rawScore = (capeScore + shearScore + freezingScore + lapseScore) * modeMultiplier * cinPenalty;
-            const probability = Math.min(99, Math.max(0, Math.round((rawScore / 95) * 100)));
-
-            // Estimated maximum stone diameter (cm) based on MUCAPE and shear
-            let estSize = 0;
-            if (probability >= 40) {
-                estSize = Number(((cape / 350) * (shear_0_6km / 18) * 0.7).toFixed(1));
-                estSize = Math.max(0.5, Math.min(7.5, estSize));
+            // STEP 1: DERIVAZIONI
+            let shear_0_6km = fallback_shear;
+            if (u500 !== undefined && v500 !== undefined && u850 !== undefined && v850 !== undefined) {
+                shear_0_6km = Math.sqrt(Math.pow(u500 - u850, 2) + Math.pow(v500 - v850, 2));
             }
 
+            let lapse_rate = 6.0;
+            if (t700 !== undefined && t500 !== undefined) {
+                const dz = (z500 !== undefined && z700 !== undefined) ? (z500 - z700) : 3000;
+                if (dz > 0) {
+                    lapse_rate = ((t700 - t500) / dz) * 1000;
+                }
+            }
+
+            let frz_level = freezing_level !== undefined ? freezing_level : 4200;
+
+            // STEP 2: STATO DEL TEMPORALE
+            const getStormState = (p) => {
+                if (p < 0.2) return "none";
+                if (p < 1) return "weak";
+                if (p < 5) return "moderate";
+                return "strong";
+            };
+            const storm_state = getStormState(precip);
+
+            // STEP 3: NORMALIZZAZIONE
+            const normCAPE = (c) => {
+                if (c < 500) return 0;
+                if (c < 1000) return 0.3;
+                if (c < 2000) return 0.6;
+                if (c < 3000) return 0.8;
+                return 1.0;
+            };
+
+            const normShear = (s) => {
+                if (s < 10) return 0.1;
+                if (s < 20) return 0.5;
+                if (s < 30) return 0.8;
+                return 1.0;
+            };
+
+            const normFreezing = (f) => {
+                if (f > 4500) return 0.1;
+                if (f > 4000) return 0.4;
+                if (f > 3500) return 0.7;
+                return 1.0;
+            };
+
+            const normLapseRate = (lr) => {
+                if (lr < 6.0) return 0.2;
+                if (lr < 6.5) return 0.5;
+                if (lr < 7.5) return 0.8;
+                return 1.0;
+            };
+
+            const normCIN = (c_in) => {
+                if (c_in === undefined || c_in === null) return 1.0;
+                const c = c_in > 0 ? -c_in : c_in; 
+                if (c > -50) return 1.0;
+                if (c > -100) return 0.7;
+                if (c > -200) return 0.4;
+                return 0.1;
+            };
+
+            const CAPE_n = normCAPE(cape);
+            const SHEAR_n = normShear(shear_0_6km);
+            const FRZ_n = normFreezing(frz_level);
+            const LR_n = normLapseRate(lapse_rate);
+            const CIN_n = normCIN(cin);
+
+            // STEP 4: HSR BASE
+            let hsr = 0.35 * CAPE_n + 0.30 * SHEAR_n + 0.20 * FRZ_n + 0.15 * LR_n;
+            hsr = hsr * (0.7 + 0.3 * CIN_n);
+            const hsr_raw = hsr;
+
+            // STEP 5: FATTORE STATO TEMPORALE
+            const stormFactor = (state) => {
+                switch (state) {
+                    case "none": return 0.0;
+                    case "weak": return 0.4;
+                    case "moderate": return 0.7;
+                    case "strong": return 1.0;
+                    default: return 0.5;
+                }
+            };
+            const s_factor = stormFactor(storm_state);
+            hsr = hsr * s_factor;
+
+            // STEP 6: FATTORE STRUTTURA
+            const structureFactor = (p) => {
+                if (p < 0.5) return 0.4;
+                if (p < 5) return 0.7;
+                return 0.5;
+            };
+            const struct_factor = structureFactor(precip);
+            hsr = hsr * struct_factor;
+
+            // STEP 7: CLAMP
+            hsr = Math.max(0, Math.min(1, hsr));
+
+            // STEP 8: CLASSIFICAZIONE
+            const classify = (h) => {
+                if (h < 0.35) return { level: "none", label: "Nessuna grandine", estSize: 0 };
+                if (h < 0.55) return { level: "small", label: "Grandine possibile (1–2 cm)", estSize: 1.5 };
+                if (h < 0.75) return { level: "medium", label: "Grandine possibile (2–3 cm)", estSize: 2.5 };
+                return { level: "large", label: "Rischio grandine >3 cm", estSize: 4.0 };
+            };
+            
+            const result = classify(hsr);
+
+            // STEP 9: OUTPUT COMPLETO
             return {
-                probability,
-                estSize,
+                probability: Math.round(hsr * 100),
+                hsr_raw: hsr_raw,
+                hsr_final: hsr,
+                hail_level: result.level,
+                label: result.label,
+                estSize: result.estSize,
+                storm_state: storm_state,
                 breakdown: {
-                    capeScore,
-                    shearScore,
-                    freezingScore,
-                    lapseScore,
-                    rawScore
+                    cape_n: CAPE_n, 
+                    shear_n: SHEAR_n, 
+                    frz_n: FRZ_n, 
+                    lr_n: LR_n, 
+                    cin_n: CIN_n,
+                    shear_0_6km: Number(shear_0_6km.toFixed(1)),
+                    lapse_rate: Number(lapse_rate.toFixed(2)),
+                    frz_level: Math.round(frz_level),
+                    storm_state: storm_state,
+                    storm_factor: s_factor,
+                    structure_factor: struct_factor
                 }
             };
         }
@@ -780,6 +841,20 @@
 
         async function getCityName(lat, lon) {
             try {
+                // Primo tentativo: Nominatim (OpenStreetMap) per altissima precisione locale
+                const nomRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=14`);
+                if (nomRes.ok) {
+                    const data = await nomRes.json();
+                    if (data && data.address) {
+                        return data.address.village || data.address.town || data.address.city || data.address.municipality || data.name || "La tua Posizione";
+                    }
+                }
+            } catch (e) {
+                console.warn("Nominatim error, provo il fallback...", e);
+            }
+
+            try {
+                // Fallback: BigDataCloud
                 const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=it`);
                 const data = await res.json();
                 return data.city || data.locality || "La tua Posizione";
@@ -971,7 +1046,7 @@
 
             try {
                 // Requesting atmospheric variables including CAPE, CIN, Geopotential heights / freezing levels, wind shear, lapse rates
-                const params = `latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation_probability,precipitation,cape,convective_inhibition,freezing_level_height,wind_speed_80m,wind_speed_10m,temperature_700hPa,temperature_500hPa&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,precipitation_probability_max,precipitation_sum,cape_max&timezone=auto`;
+                const params = `latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation_probability,precipitation,cape,convective_inhibition,freezing_level_height,wind_speed_80m,temperature_700hPa,temperature_500hPa,geopotential_height_700hPa,geopotential_height_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_500hPa,wind_direction_500hPa&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,precipitation_probability_max,precipitation_sum,cape_max&timezone=auto`;
                 
                 const [iconRes, ecmwfRes] = await Promise.allSettled([
                     fetch(`https://api.open-meteo.com/v1/forecast?${params}&models=icon_d2`),
@@ -1014,6 +1089,12 @@
                             if (iconData.hourly.cape && iconData.hourly.cape[i] !== undefined) mergedHourly.cape[i] = iconData.hourly.cape[i];
                             if (iconData.hourly.convective_inhibition && iconData.hourly.convective_inhibition[i] !== undefined) mergedHourly.convective_inhibition[i] = iconData.hourly.convective_inhibition[i];
                             if (iconData.hourly.freezing_level_height && iconData.hourly.freezing_level_height[i] !== undefined) mergedHourly.freezing_level_height[i] = iconData.hourly.freezing_level_height[i];
+                            
+                            // Map pressure level variables se disponibili in ICON
+                            if (iconData.hourly.wind_speed_850hPa && iconData.hourly.wind_speed_850hPa[i] !== undefined) mergedHourly.wind_speed_850hPa = mergedHourly.wind_speed_850hPa || [], mergedHourly.wind_speed_850hPa[i] = iconData.hourly.wind_speed_850hPa[i];
+                            if (iconData.hourly.wind_direction_850hPa && iconData.hourly.wind_direction_850hPa[i] !== undefined) mergedHourly.wind_direction_850hPa = mergedHourly.wind_direction_850hPa || [], mergedHourly.wind_direction_850hPa[i] = iconData.hourly.wind_direction_850hPa[i];
+                            if (iconData.hourly.wind_speed_500hPa && iconData.hourly.wind_speed_500hPa[i] !== undefined) mergedHourly.wind_speed_500hPa = mergedHourly.wind_speed_500hPa || [], mergedHourly.wind_speed_500hPa[i] = iconData.hourly.wind_speed_500hPa[i];
+                            if (iconData.hourly.wind_direction_500hPa && iconData.hourly.wind_direction_500hPa[i] !== undefined) mergedHourly.wind_direction_500hPa = mergedHourly.wind_direction_500hPa || [], mergedHourly.wind_direction_500hPa[i] = iconData.hourly.wind_direction_500hPa[i];
                         }
                     }
                 }
@@ -1127,48 +1208,53 @@
             for (let i = currentHourIndex; i < cutoff; i++) {
                 const cape = data.hourly.cape ? (data.hourly.cape[i] || 0) : 0;
                 const cin = data.hourly.convective_inhibition ? (data.hourly.convective_inhibition[i] || 0) : 0;
-                const freezing = data.hourly.freezing_level_height ? (data.hourly.freezing_level_height[i] || 3000) : 3000;
+                const freezing = data.hourly.freezing_level_height ? (data.hourly.freezing_level_height[i] || undefined) : undefined;
+                
+                const t700 = data.hourly.temperature_700hPa ? data.hourly.temperature_700hPa[i] : undefined;
+                const t500 = data.hourly.temperature_500hPa ? data.hourly.temperature_500hPa[i] : undefined;
+                const z700 = data.hourly.geopotential_height_700hPa ? data.hourly.geopotential_height_700hPa[i] : undefined;
+                const z500 = data.hourly.geopotential_height_500hPa ? data.hourly.geopotential_height_500hPa[i] : undefined;
+
+                const precip = data.hourly.precipitation ? (data.hourly.precipitation[i] || 0) : 0;
+
                 const wind10 = data.hourly.wind_speed_10m ? (data.hourly.wind_speed_10m[i] || 10) : 10;
                 const wind80 = data.hourly.wind_speed_80m ? (data.hourly.wind_speed_80m[i] || (wind10 * 1.5)) : (wind10 * 1.5);
                 
-                // Estimate shear 0-6km in m/s (approx difference between 80m and 10m scaled)
-                const shear_0_6km = Number(((wind80 - wind10) * 0.28).toFixed(1)) + 10; // baseline shear estimation
+                // Fallback estremo per lo shear in m/s se mancano completamente i dati in quota
+                const fallback_shear = Number(((wind80 - wind10) * 0.28).toFixed(1)) + 10;
 
-                // Estimate lapse rate 700-500 hPa
-                let lapse_rate_700_500 = 6.5;
-                if (data.hourly.temperature_700hPa && data.hourly.temperature_500hPa) {
-                    const t700 = data.hourly.temperature_700hPa[i];
-                    const t500 = data.hourly.temperature_500hPa[i];
-                    if (t700 !== undefined && t500 !== undefined) {
-                        lapse_rate_700_500 = Number(((t700 - t500) / 3.0).toFixed(1)); // Approx vertical gradient
-                    }
+                // Calcolo vettori u/v da 850hPa e 500hPa se disponibili per lo shear
+                let u850, v850, u500, v500;
+                if (data.hourly.wind_speed_850hPa !== undefined && data.hourly.wind_direction_850hPa !== undefined) {
+                    const ws = data.hourly.wind_speed_850hPa[i] / 3.6; // convert km/h to m/s
+                    const wd = data.hourly.wind_direction_850hPa[i] * (Math.PI / 180);
+                    u850 = -ws * Math.sin(wd);
+                    v850 = -ws * Math.cos(wd);
+                }
+                if (data.hourly.wind_speed_500hPa !== undefined && data.hourly.wind_direction_500hPa !== undefined) {
+                    const ws = data.hourly.wind_speed_500hPa[i] / 3.6;
+                    const wd = data.hourly.wind_direction_500hPa[i] * (Math.PI / 180);
+                    u500 = -ws * Math.sin(wd);
+                    v500 = -ws * Math.cos(wd);
                 }
 
-                // Determine convective mode based on CAPE & Shear
-                let convective_mode = 'multicell';
-                if (cape > 1800 && shear_0_6km > 18) convective_mode = 'isolated';
-                else if (shear_0_6km > 24) convective_mode = 'linear';
-
                 const hailRes = calculateHailIndex({
-                    cape,
-                    shear_0_6km,
+                    cape, cin,
+                    u850, v850, u500, v500,
+                    t700, t500, z700, z500,
                     freezing_level: freezing,
-                    lapse_rate_700_500,
-                    cin,
-                    convective_mode
+                    precip,
+                    fallback_shear
                 });
 
-                if (hailRes.probability > maxProb) {
-                    maxProb = hailRes.probability;
+                if (hailRes.hsr_final > maxProb) {
+                    maxProb = hailRes.hsr_final;
                     peakObj = {
                         index: i,
                         date: new Date(data.hourly.time[i]),
                         cape,
-                        shear_0_6km,
-                        freezing,
-                        lapse_rate_700_500,
                         cin,
-                        convective_mode,
+                        precip,
                         result: hailRes
                     };
                 }
@@ -1176,19 +1262,23 @@
 
             lastEvaluatedHailResult = peakObj;
 
-            if (maxProb >= 35 && peakObj) {
+            if (maxProb >= 0.35 && peakObj) {
                 const timeStr = peakObj.date.toLocaleDateString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-                const stoneSize = peakObj.result.estSize;
+                const r = peakObj.result;
                 
-                let severityDesc = "Rischio moderato (chicchi piccoli/medi)";
-                if (maxProb >= 70 || stoneSize >= 3.0) {
-                    severityDesc = "⚠️ Alto Rischio Grandine Violenta!";
+                let alertStyle = "⚠️ ALLERTA RISCHIO GRANDINE";
+                if (maxProb >= 0.75) {
+                    alertStyle = "🚨 ALTO RISCHIO GRANDINE!";
                 }
 
                 alertText.innerHTML = `
-                    <p class="font-semibold text-amber-100">Picco stimato: <span class="text-white">${timeStr}</span> (Probabilità: <span class="text-white font-bold">${maxProb}%</span>)</p>
-                    <p class="text-amber-200/90 font-medium">Diametro stimato chicchi: ~${stoneSize} cm — ${severityDesc}</p>
+                    <p class="font-semibold text-amber-100">Picco stimato: <span class="text-white">${timeStr}</span> (HSR: <span class="text-white font-bold">${Math.round(maxProb * 100)}%</span>)</p>
+                    <p class="text-amber-200/90 font-medium">${r.label} - Chicchi stimati: ~${r.estSize} cm</p>
                 `;
+                
+                const titleEl = alertCard.querySelector('.font-bold span');
+                if (titleEl) titleEl.innerText = alertStyle;
+
                 alertCard.classList.remove('hidden');
             } else {
                 alertCard.classList.add('hidden');
@@ -1203,23 +1293,30 @@
             if (modal.classList.contains('hidden')) {
                 if (lastEvaluatedHailResult) {
                     const r = lastEvaluatedHailResult;
-                    const brk = r.result.breakdown;
+                    const res = r.result;
+                    const brk = res.breakdown;
                     content.innerHTML = `
                         <div class="bg-white/5 p-3 rounded-xl border border-white/10 space-y-2">
-                            <p class="font-bold text-amber-300 text-sm">Dettagli Algoritmo Grandine per il picco:</p>
+                            <p class="font-bold text-amber-300 text-sm">Dettagli HSR (Hail Size Risk v3) per il picco:</p>
                             <p><b>Data/Ora:</b> ${r.date.toLocaleString('it-IT')}</p>
-                            <p><b>Probabilità Grandine Calcolata:</b> <span class="text-white font-bold text-base">${r.result.probability}%</span></p>
-                            <p><b>Diametro Stimato Chicchi:</b> <span class="text-white font-bold">~${r.result.estSize} cm</span></p>
+                            <p><b>HSR Finale:</b> <span class="text-white font-bold text-base">${Math.round(res.hsr_final * 100)}%</span> (${res.label})</p>
+                            <p><b>Diametro Stimato:</b> <span class="text-white font-bold">~${res.estSize} cm</span></p>
                             <hr class="border-white/10 my-1">
-                            <p class="font-semibold text-sky-200">Parametri di Ingresso:</p>
+                            <p class="font-semibold text-sky-200">Componenti Normalizzati (0-1):</p>
                             <ul class="list-disc pl-4 space-y-1 text-slate-200">
-                                <li><b>MUCAPE (CAPE):</b> ${Math.round(r.cape)} J/kg (Score: ${brk.capeScore}/35)</li>
-                                <li><b>Wind Shear (0-6km):</b> ${r.shear_0_6km} m/s (Score: ${brk.shearScore}/25)</li>
-                                <li><b>Freezing Level:</b> ${Math.round(r.freezing)} m (Score: ${brk.freezingScore}/20)</li>
-                                <li><b>Lapse Rate (700-500hPa):</b> ${r.lapse_rate_700_500} °C/km (Score: ${brk.lapseScore}/15)</li>
-                                <li><b>CIN (Inibizione):</b> ${Math.round(r.cin)} J/kg</li>
-                                <li><b>Modello Convettivo:</b> <span class="uppercase">${r.convective_mode}</span></li>
+                                <li><b>CAPE Score:</b> ${brk.cape_n.toFixed(2)} (MUCAPE: ${Math.round(r.cape)} J/kg)</li>
+                                <li><b>Shear Score:</b> ${brk.shear_n.toFixed(2)} (0-6km: ${brk.shear_0_6km} m/s)</li>
+                                <li><b>Freezing Score:</b> ${brk.frz_n.toFixed(2)} (Quota zero termico: ${brk.frz_level} m)</li>
+                                <li><b>Lapse Rate Score:</b> ${brk.lr_n.toFixed(2)} (Gradiente: ${brk.lapse_rate} °C/km)</li>
+                                <li><b>CIN Moltiplicatore:</b> ${brk.cin_n.toFixed(2)} (Inibizione: ${Math.round(r.cin)} J/kg)</li>
                             </ul>
+                            <p class="font-semibold text-sky-200 mt-2">Dinamica Cella (HSR v3):</p>
+                            <ul class="list-disc pl-4 space-y-1 text-slate-200">
+                                <li><b>Precipitazione Prevista:</b> ${r.precip.toFixed(1)} mm/h</li>
+                                <li><b>Stato Temporale:</b> <span class="uppercase">${brk.storm_state}</span> (Fattore: x${brk.storm_factor.toFixed(2)})</li>
+                                <li><b>Fattore Struttura:</b> x${brk.structure_factor.toFixed(2)}</li>
+                            </ul>
+                            <p class="text-[10px] text-white/50 mt-2 border-t border-white/10 pt-1">HSR Base: ${(res.hsr_raw).toFixed(3)} | HSR Final: ${(res.hsr_final).toFixed(3)}</p>
                         </div>
                     `;
                 } else {
@@ -1324,9 +1421,8 @@
                 row.innerHTML = `
                     <div class="w-24 sm:w-28 font-bold text-base sm:text-lg capitalize truncate">${dayName}</div>
                     
-                    <div class="flex items-center justify-center gap-1.5 w-12 sm:w-28">
+                    <div class="flex items-center justify-center w-12 sm:w-16">
                         ${getSVGIcon(wInfo.icon, "w-10 h-10 sm:w-12 sm:h-12")}
-                        <span class="text-xs text-white/70 truncate hidden sm:inline">${wInfo.label}</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center text-center w-24">
@@ -1398,9 +1494,8 @@
                 item.innerHTML = `
                     <div class="w-16 sm:w-20 font-bold text-sky-200 text-base sm:text-lg shrink-0">${hourStr}</div>
                     
-                    <div class="flex items-center justify-center gap-2 w-16 sm:w-36">
+                    <div class="flex items-center justify-center w-12 sm:w-16">
                         ${getSVGIcon(wInfo.icon, "w-9 h-9 sm:w-10 sm:h-10", isNight)}
-                        <span class="text-xs sm:text-sm text-white/90 truncate hidden sm:inline">${wInfo.label}</span>
                     </div>
 
                     <div class="flex flex-col items-center justify-center text-center w-28">
