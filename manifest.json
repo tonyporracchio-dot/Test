@@ -7,7 +7,7 @@
   "theme_color": "#0284c7",
   "icons": [
     {
-      "src": "icon.png",
+      "src": "https://github.com/tonyporracchio-dot/meteo_pro/icon.png",
       "sizes": "180x180",
       "type": "image/png"
     }
