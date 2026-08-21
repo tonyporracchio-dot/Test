@@ -1,6 +1,6 @@
 {
   "name": "Meteo Pro",
-  "short_name": "Meteo",
+  "short_name": "Meteo_pro",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0284c7",
